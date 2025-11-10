@@ -1,4 +1,4 @@
-module go-chat
+module little-orm
 
 go 1.23.0
 
