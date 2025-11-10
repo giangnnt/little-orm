@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -34,7 +35,7 @@ func (r *DBRegistry) GetTableMeta(model any) TableMeta {
 
 	tableMeta, ok := r.cache[tableName]
 	if !ok {
-		panic("Model not registered in DBRegistry")
+		panic(fmt.Sprintf("Table %s is not registered", tableName))
 	}
 	return tableMeta
 
@@ -53,7 +54,8 @@ func (r *DBRegistry) Register(model any) {
 	tableMeta := TableMeta{TableName: tableName, Columns: tableCols}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.cache[t.Name()] = tableMeta
+	// Store using tableName (e.g., "users") not t.Name() (e.g., "User")
+	r.cache[tableName] = tableMeta
 }
 
 func getTableName(t *reflect.Type) string {
@@ -77,4 +79,10 @@ func getTableColsNameMap(t *reflect.Type) map[string]ColumnMeta {
 		}
 	}
 	return colsMap
+}
+
+// ResetForTesting resets the registry singleton for testing purposes
+func ResetForTesting() {
+	instance = nil
+	once = sync.Once{}
 }

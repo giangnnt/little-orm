@@ -7,15 +7,15 @@ import (
 )
 
 type SelectBuilder struct {
-	table      string
-	fields     []string
-	conditions []string
-	orderBy    []string
-	sortOrder  []SortOrder
-	limit      int
-	offset     int
-	args       []any
-	tableMeta  registry.TableMeta
+	table     string
+	fields    []string
+	exprs     []Expr
+	orderBy   []string
+	sortOrder []SortOrder
+	limit     int
+	offset    int
+	args      []any
+	tableMeta registry.TableMeta
 }
 
 func NewSelectBuilder(model any) *SelectBuilder {
@@ -31,18 +31,31 @@ func NewSelectBuilder(model any) *SelectBuilder {
 
 	return &SelectBuilder{
 		tableMeta: tableMeta,
+		table:     tableMeta.TableName,
 		fields:    fields,
 	}
 }
 
 func (b *SelectBuilder) Select(fields ...string) *SelectBuilder {
-	b.fields = fields
+	for _, field := range fields {
+		fieldTag, ok := b.tableMeta.Columns[field]
+		if !ok {
+			panic(fmt.Sprintf("Field %s is not registered", field))
+		}
+		b.fields = append(b.fields, fieldTag.DBTag)
+	}
 	return b
 }
 
-func (b *SelectBuilder) Where(cond string, args ...any) *SelectBuilder {
-	b.conditions = append(b.conditions, cond)
-	b.args = append(b.args, args...)
+func (b *SelectBuilder) Where(e Expr) *SelectBuilder {
+	colMeta, ok := b.tableMeta.Columns[e.Field]
+	if !ok {
+		panic("Field " + e.Field + " not found in table metadata")
+	}
+
+	e.Field = colMeta.DBTag
+
+	b.exprs = append(b.exprs, e)
 	return b
 }
 
@@ -63,40 +76,52 @@ func (b *SelectBuilder) Offset(m int) *SelectBuilder {
 }
 
 func (b *SelectBuilder) Build() (string, []any) {
-	// SELECT clause
-	fields := ""
+	query := b.buildSelectClause()
+	query += b.buildWhereClause()
+	query += b.buildOrderByClause()
+	query += b.buildLimitOffsetClause()
+	return query, b.args
+}
+
+func (b *SelectBuilder) buildSelectClause() string {
+	fields := "*"
 	if len(b.fields) > 0 {
 		fields = strings.Join(b.fields, ", ")
-	} else {
-		fields = "*"
 	}
-	query := fmt.Sprintf("SELECT %s FROM %s", fields, b.table)
+	return fmt.Sprintf("SELECT %s FROM %s", fields, b.table)
+}
 
-	// WHERE clause
-	if len(b.conditions) > 0 {
-		query += " WHERE " + strings.Join(b.conditions, " AND ")
+func (b *SelectBuilder) buildWhereClause() string {
+	if len(b.conditions) == 0 {
+		return ""
+	}
+	return " WHERE " + strings.Join(b.conditions, " AND ")
+}
+
+func (b *SelectBuilder) buildOrderByClause() string {
+	if len(b.orderBy) == 0 {
+		return ""
 	}
 
-	// ORDER BY clause
-	if len(b.orderBy) > 0 {
-		orders := make([]string, len(b.orderBy))
-		for i := range b.orderBy {
-			ord := b.orderBy[i]
-			if i < len(b.sortOrder) {
-				ord += " " + string(b.sortOrder[i])
-			}
-			orders[i] = ord
+	orders := make([]string, len(b.orderBy))
+	for i := range b.orderBy {
+		ord := b.orderBy[i]
+		if i < len(b.sortOrder) {
+			ord += " " + string(b.sortOrder[i])
 		}
-		query += " ORDER BY " + strings.Join(orders, ", ")
+		orders[i] = ord
 	}
 
-	// LIMIT / OFFSET
+	return " ORDER BY " + strings.Join(orders, ", ")
+}
+
+func (b *SelectBuilder) buildLimitOffsetClause() string {
+	result := ""
 	if b.limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", b.limit)
+		result += fmt.Sprintf(" LIMIT %d", b.limit)
 	}
 	if b.offset > 0 {
-		query += fmt.Sprintf(" OFFSET %d", b.offset)
+		result += fmt.Sprintf(" OFFSET %d", b.offset)
 	}
-
-	return query, b.args
+	return result
 }
