@@ -7,15 +7,16 @@ import (
 )
 
 type SelectBuilder struct {
-	table     string
-	fields    []string
-	exprs     []Expr
-	orderBy   []string
-	sortOrder []SortOrder
-	limit     int
-	offset    int
-	args      []any
-	tableMeta registry.TableMeta
+	table         string
+	fields        []string
+	exprs         Expr
+	orderBy       []string
+	sortOrder     []SortOrder
+	limit         int
+	offset        int
+	args          []any
+	tableMeta     registry.TableMeta
+	exprValidator *ExprValidator
 }
 
 func NewSelectBuilder(model any) *SelectBuilder {
@@ -30,32 +31,32 @@ func NewSelectBuilder(model any) *SelectBuilder {
 	}
 
 	return &SelectBuilder{
-		tableMeta: tableMeta,
-		table:     tableMeta.TableName,
-		fields:    fields,
+		tableMeta:     tableMeta,
+		table:         tableMeta.TableName,
+		fields:        fields,
+		exprValidator: &ExprValidator{tableMeta: tableMeta},
 	}
 }
 
 func (b *SelectBuilder) Select(fields ...string) *SelectBuilder {
+	dbTags := []string{}
 	for _, field := range fields {
 		fieldTag, ok := b.tableMeta.Columns[field]
 		if !ok {
 			panic(fmt.Sprintf("Field %s is not registered", field))
 		}
-		b.fields = append(b.fields, fieldTag.DBTag)
+		dbTags = append(dbTags, fieldTag.DBTag)
 	}
+	// Replace init fields
+	b.fields = dbTags
 	return b
 }
 
 func (b *SelectBuilder) Where(e Expr) *SelectBuilder {
-	colMeta, ok := b.tableMeta.Columns[e.Field]
-	if !ok {
-		panic("Field " + e.Field + " not found in table metadata")
+	if err := b.exprValidator.ValidateAndTransform(&e); err != nil {
+		panic(err.Error())
 	}
-
-	e.Field = colMeta.DBTag
-
-	b.exprs = append(b.exprs, e)
+	b.exprs = e
 	return b
 }
 
@@ -83,19 +84,21 @@ func (b *SelectBuilder) Build() (string, []any) {
 	return query, b.args
 }
 
+func (b *SelectBuilder) buildWhereClause() string {
+	if b.exprs == nil {
+		return ""
+	}
+	whereClause, args := b.exprs.ToSQL()
+	b.args = args
+	return " WHERE " + whereClause
+}
+
 func (b *SelectBuilder) buildSelectClause() string {
 	fields := "*"
 	if len(b.fields) > 0 {
 		fields = strings.Join(b.fields, ", ")
 	}
 	return fmt.Sprintf("SELECT %s FROM %s", fields, b.table)
-}
-
-func (b *SelectBuilder) buildWhereClause() string {
-	if len(b.conditions) == 0 {
-		return ""
-	}
-	return " WHERE " + strings.Join(b.conditions, " AND ")
 }
 
 func (b *SelectBuilder) buildOrderByClause() string {

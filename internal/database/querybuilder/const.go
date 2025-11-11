@@ -16,9 +16,25 @@ const (
 	Descending SortOrder = "DESC"
 )
 
-type LogicOp string
+type Op string
 
 const (
-	AND LogicOp = "AND"
-	OR  LogicOp = "OR"
+	// Comparison operators
+	OpEq        Op = "="
+	OpNEq       Op = "!="
+	OpGt        Op = ">"
+	OpLt        Op = "<"
+	OpGte       Op = ">="
+	OpLte       Op = "<="
+	OpLike      Op = "LIKE"
+	OpIn        Op = "IN"
+	OpNIn     Op = "NOT IN"
+	OpIsNull    Op = "IS NULL"
+	OpIsNotNull Op = "IS NOT NULL"
+	OpBetween   Op = "BETWEEN"
+
+	// Logical operators
+	OpAnd Op = "AND"
+	OpOr  Op = "OR"
+	OpNot Op = "NOT"
 )
