@@ -10,6 +10,7 @@ type SelectBuilder struct {
 	table         string
 	fields        []string
 	exprs         Expr
+	groupBy       []ColumnExpr
 	orderBy       []string
 	sortOrder     []SortOrder
 	limit         int
@@ -59,6 +60,10 @@ func (b *SelectBuilder) Where(e Expr) *SelectBuilder {
 	b.exprs = e
 	return b
 }
+
+// func (b *SelectBuilder) GroupBy(gr []Expr) *SelectBuilder {
+
+// }
 
 func (b *SelectBuilder) OrderBy(order string, sortOrder SortOrder) *SelectBuilder {
 	b.orderBy = append(b.orderBy, order)

@@ -20,18 +20,18 @@ type Op string
 
 const (
 	// Comparison operators
-	OpEq        Op = "="
-	OpNEq       Op = "!="
-	OpGt        Op = ">"
-	OpLt        Op = "<"
-	OpGte       Op = ">="
-	OpLte       Op = "<="
-	OpLike      Op = "LIKE"
-	OpIn        Op = "IN"
+	OpEq      Op = "="
+	OpNEq     Op = "!="
+	OpGt      Op = ">"
+	OpLt      Op = "<"
+	OpGte     Op = ">="
+	OpLte     Op = "<="
+	OpLike    Op = "LIKE"
+	OpIn      Op = "IN"
 	OpNIn     Op = "NOT IN"
-	OpIsNull    Op = "IS NULL"
-	OpIsNotNull Op = "IS NOT NULL"
-	OpBetween   Op = "BETWEEN"
+	OpIsNull  Op = "IS NULL"
+	OpIsNNull Op = "IS NOT NULL"
+	OpBetween Op = "BETWEEN"
 
 	// Logical operators
 	OpAnd Op = "AND"
