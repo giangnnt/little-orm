@@ -5,10 +5,12 @@ import (
 	"little-orm/internal/database/registry"
 )
 
+// ExprValidator validates and transforms expressions
 type ExprValidator struct {
 	tableMeta registry.TableMeta
 }
 
+// ValidateAndTransform validates expression and transforms column names to database tags
 func (v *ExprValidator) ValidateAndTransform(expr *Expr) error {
 	switch expr := (*expr).(type) {
 	case *ColumnExpr:

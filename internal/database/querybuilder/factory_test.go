@@ -63,7 +63,7 @@ func TestBuilderFactory_Create_SelectType(t *testing.T) {
 	setupTestRegistry()
 
 	factory := &BuilderFactory{}
-	builder := factory.Create(SelectType, model.User{})
+	builder := factory.CreateBuilder(SelectType, model.User{})
 
 	if builder == nil {
 		t.Fatal("Expected builder to not be nil")
@@ -79,7 +79,7 @@ func TestBuilderFactory_Create_InsertType(t *testing.T) {
 	setupTestRegistry()
 
 	factory := &BuilderFactory{}
-	builder := factory.Create(InsertType, model.User{})
+	builder := factory.CreateBuilder(InsertType, model.User{})
 
 	if builder == nil {
 		t.Fatal("Expected builder to not be nil")
@@ -95,7 +95,7 @@ func TestBuilderFactory_Create_InvalidType(t *testing.T) {
 	setupTestRegistry()
 
 	factory := &BuilderFactory{}
-	builder := factory.Create(SQLBuilderType("invalid"), model.User{})
+	builder := factory.CreateBuilder(SQLBuilderType("invalid"), model.User{})
 
 	if builder != nil {
 		t.Error("Expected nil builder for invalid type")
@@ -135,7 +135,7 @@ func TestBuilderFactory_Create_AllTypes(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			builder := factory.Create(tc.builderType, model.User{})
+			builder := factory.CreateBuilder(tc.builderType, model.User{})
 
 			if tc.expectNil {
 				if builder != nil {

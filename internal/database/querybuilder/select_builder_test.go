@@ -854,3 +854,273 @@ func TestSelectBuilder_Where_NestedNot(t *testing.T) {
 		t.Errorf("Expected args [10], got %v", args)
 	}
 }
+
+// ==================== EDGE CASES TESTS ====================
+
+// Test UnaryExpr with nil Operand should panic
+func TestSelectBuilder_Where_UnaryExpr_NilOperand_ShouldPanic(t *testing.T) {
+	setupTestRegistry()
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected panic for UnaryExpr with nil Operand, but didn't panic")
+		}
+	}()
+
+	builder := NewSelectBuilder(model.User{})
+
+	// UnaryExpr requires an Operand
+	builder.Where(&UnaryExpr{
+		Operator: OpNot,
+		Operand:  nil, // This is invalid
+	}).Build()
+}
+
+// Test UnaryExpr IS NULL with nil Operand should panic
+func TestSelectBuilder_Where_UnaryExpr_IsNull_NilOperand_ShouldPanic(t *testing.T) {
+	setupTestRegistry()
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected panic for IS NULL with nil Operand, but didn't panic")
+		}
+	}()
+
+	builder := NewSelectBuilder(model.User{})
+
+	builder.Where(&UnaryExpr{
+		Operator: "IS NULL",
+		Operand:  nil,
+	}).Build()
+}
+
+// Test TernaryExpr with nil Expr should panic
+func TestSelectBuilder_Where_TernaryExpr_NilExpr_ShouldPanic(t *testing.T) {
+	setupTestRegistry()
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected panic for TernaryExpr with nil Expr, but didn't panic")
+		}
+	}()
+
+	builder := NewSelectBuilder(model.User{})
+
+	builder.Where(&TernaryExpr{
+		Expr: nil, // This is invalid
+		Low:  &LiteralExpr{Value: 10},
+		High: &LiteralExpr{Value: 100},
+	}).Build()
+}
+
+// Test TernaryExpr with nil Low should panic
+func TestSelectBuilder_Where_TernaryExpr_NilLow_ShouldPanic(t *testing.T) {
+	setupTestRegistry()
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected panic for TernaryExpr with nil Low, but didn't panic")
+		}
+	}()
+
+	builder := NewSelectBuilder(model.User{})
+
+	builder.Where(&TernaryExpr{
+		Expr: &ColumnExpr{Name: "ID"},
+		Low:  nil, // This is invalid
+		High: &LiteralExpr{Value: 100},
+	}).Build()
+}
+
+// Test TernaryExpr with nil High should panic
+func TestSelectBuilder_Where_TernaryExpr_NilHigh_ShouldPanic(t *testing.T) {
+	setupTestRegistry()
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected panic for TernaryExpr with nil High, but didn't panic")
+		}
+	}()
+
+	builder := NewSelectBuilder(model.User{})
+
+	builder.Where(&TernaryExpr{
+		Expr: &ColumnExpr{Name: "ID"},
+		Low:  &LiteralExpr{Value: 10},
+		High: nil, // This is invalid
+	}).Build()
+}
+
+// Test BinaryExpr with unsupported operator returns empty WHERE
+func TestSelectBuilder_Where_BinaryExpr_UnsupportedOperator(t *testing.T) {
+	setupTestRegistry()
+
+	builder := NewSelectBuilder(model.User{})
+
+	// Using an unsupported operator
+	query, args := builder.Where(&BinaryExpr{
+		Operator: "UNKNOWN",
+		Left:     &ColumnExpr{Name: "ID"},
+		Right:    &LiteralExpr{Value: 1},
+	}).Build()
+
+	// Current implementation returns empty string for unsupported operators
+	// So the WHERE clause will be "WHERE " which is unusual but not panic
+	if !strings.Contains(query, "WHERE") {
+		t.Errorf("Expected WHERE clause, got: %s", query)
+	}
+
+	// Args should be empty since the operator didn't process
+	if len(args) != 0 {
+		t.Errorf("Expected 0 args for unsupported operator, got %d: %v", len(args), args)
+	}
+}
+
+// Test multiple Where() calls - last one wins (overwrite behavior)
+func TestSelectBuilder_Where_MultipleCalls_LastWins(t *testing.T) {
+	setupTestRegistry()
+
+	builder := NewSelectBuilder(model.User{})
+
+	// Call Where() multiple times
+	query, args := builder.
+		Where(&BinaryExpr{
+			Operator: OpEq,
+			Left:     &ColumnExpr{Name: "ID"},
+			Right:    &LiteralExpr{Value: 1},
+		}).
+		Where(&BinaryExpr{
+			Operator: OpEq,
+			Left:     &ColumnExpr{Name: "Name"},
+			Right:    &LiteralExpr{Value: "Alice"},
+		}).
+		Build()
+
+	// Only the last Where() should be in the query
+	if strings.Contains(query, "id =") {
+		t.Errorf("Expected first Where() to be overwritten, but found 'id =' in query: %s", query)
+	}
+
+	if !strings.Contains(query, "name = ?") {
+		t.Errorf("Expected second Where() with 'name = ?', got: %s", query)
+	}
+
+	if len(args) != 1 || args[0] != "Alice" {
+		t.Errorf("Expected args [Alice], got %v", args)
+	}
+}
+
+// Test OrderBy with invalid field name should not panic in OrderBy but may fail in validation
+func TestSelectBuilder_OrderBy_InvalidField(t *testing.T) {
+	setupTestRegistry()
+
+	builder := NewSelectBuilder(model.User{})
+
+	// OrderBy doesn't validate field names currently
+	// It just adds them to the ORDER BY clause
+	query, _ := builder.OrderBy("NonExistentField", Ascending).Build()
+
+	if !strings.Contains(query, "ORDER BY NonExistentField ASC") {
+		t.Errorf("Expected ORDER BY NonExistentField ASC, got: %s", query)
+	}
+
+	// This won't panic but will cause SQL error at runtime
+	// This test documents current behavior - no validation in OrderBy
+}
+
+// Test negative Limit
+func TestSelectBuilder_Limit_Negative(t *testing.T) {
+	setupTestRegistry()
+
+	builder := NewSelectBuilder(model.User{})
+
+	// Negative limit is allowed but won't appear in query (logic is > 0)
+	query, _ := builder.Limit(-10).Build()
+
+	// Current implementation only adds LIMIT if > 0, so negative is ignored
+	if strings.Contains(query, "LIMIT") {
+		t.Errorf("Expected no LIMIT clause for negative value, got: %s", query)
+	}
+
+	// This test documents current behavior - negative values are silently ignored
+}
+
+// Test negative Offset
+func TestSelectBuilder_Offset_Negative(t *testing.T) {
+	setupTestRegistry()
+
+	builder := NewSelectBuilder(model.User{})
+
+	query, _ := builder.Offset(-5).Build()
+
+	// Current implementation only adds OFFSET if > 0, so negative is ignored
+	if strings.Contains(query, "OFFSET") {
+		t.Errorf("Expected no OFFSET clause for negative value, got: %s", query)
+	}
+
+	// This test documents current behavior - negative values are silently ignored
+}
+
+// Test zero Limit (should not appear in query based on current logic)
+func TestSelectBuilder_Limit_Zero(t *testing.T) {
+	setupTestRegistry()
+
+	builder := NewSelectBuilder(model.User{})
+
+	query, _ := builder.Limit(0).Build()
+
+	// Current implementation only adds LIMIT if > 0
+	if strings.Contains(query, "LIMIT") {
+		t.Errorf("Expected no LIMIT clause for 0, got: %s", query)
+	}
+}
+
+// Test zero Offset (should not appear in query based on current logic)
+func TestSelectBuilder_Offset_Zero(t *testing.T) {
+	setupTestRegistry()
+
+	builder := NewSelectBuilder(model.User{})
+
+	query, _ := builder.Offset(0).Build()
+
+	// Current implementation only adds OFFSET if > 0
+	if strings.Contains(query, "OFFSET") {
+		t.Errorf("Expected no OFFSET clause for 0, got: %s", query)
+	}
+}
+
+// Test Select with empty fields array
+func TestSelectBuilder_Select_EmptyFields(t *testing.T) {
+	setupTestRegistry()
+
+	builder := NewSelectBuilder(model.User{})
+
+	// Select with no arguments
+	query, _ := builder.Select().Build()
+
+	// When no fields are selected, fields array becomes empty
+	// buildSelectClause will use empty join which results in "SELECT  FROM users"
+	// This is edge case behavior
+	if !strings.Contains(query, "SELECT") {
+		t.Errorf("Expected SELECT clause, got: %s", query)
+	}
+}
+
+// Test OrderBy multiple times with same field
+func TestSelectBuilder_OrderBy_DuplicateField(t *testing.T) {
+	setupTestRegistry()
+
+	builder := NewSelectBuilder(model.User{})
+
+	query, _ := builder.
+		OrderBy("ID", Ascending).
+		OrderBy("ID", Descending).
+		Build()
+
+	// Both ORDER BY clauses should be added (duplicate)
+	if !strings.Contains(query, "ORDER BY ID ASC, ID DESC") {
+		t.Errorf("Expected ORDER BY ID ASC, ID DESC, got: %s", query)
+	}
+
+	// This test documents current behavior - duplicates are allowed
+}

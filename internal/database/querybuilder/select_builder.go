@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// SelectBuilder builds SELECT SQL queries
 type SelectBuilder struct {
 	table         string
 	fields        []string
@@ -20,6 +21,7 @@ type SelectBuilder struct {
 	exprValidator *ExprValidator
 }
 
+// NewSelectBuilder creates a new SELECT query builder for the given model
 func NewSelectBuilder(model any) *SelectBuilder {
 	// Get table registry and table meta
 	reg := registry.GetDBRegistry()
@@ -39,6 +41,7 @@ func NewSelectBuilder(model any) *SelectBuilder {
 	}
 }
 
+// Select specifies which fields to select (if not called, selects all fields)
 func (b *SelectBuilder) Select(fields ...string) *SelectBuilder {
 	dbTags := []string{}
 	for _, field := range fields {
@@ -53,6 +56,7 @@ func (b *SelectBuilder) Select(fields ...string) *SelectBuilder {
 	return b
 }
 
+// Where adds WHERE clause to the query
 func (b *SelectBuilder) Where(e Expr) *SelectBuilder {
 	if err := b.exprValidator.ValidateAndTransform(&e); err != nil {
 		panic(err.Error())
@@ -61,26 +65,26 @@ func (b *SelectBuilder) Where(e Expr) *SelectBuilder {
 	return b
 }
 
-// func (b *SelectBuilder) GroupBy(gr []Expr) *SelectBuilder {
-
-// }
-
+// OrderBy adds ORDER BY clause to the query
 func (b *SelectBuilder) OrderBy(order string, sortOrder SortOrder) *SelectBuilder {
 	b.orderBy = append(b.orderBy, order)
 	b.sortOrder = append(b.sortOrder, sortOrder)
 	return b
 }
 
+// Limit sets the LIMIT clause
 func (b *SelectBuilder) Limit(n int) *SelectBuilder {
 	b.limit = n
 	return b
 }
 
+// Offset sets the OFFSET clause
 func (b *SelectBuilder) Offset(m int) *SelectBuilder {
 	b.offset = m
 	return b
 }
 
+// Build constructs the final SQL query and returns it with arguments
 func (b *SelectBuilder) Build() (string, []any) {
 	query := b.buildSelectClause()
 	query += b.buildWhereClause()
@@ -89,6 +93,7 @@ func (b *SelectBuilder) Build() (string, []any) {
 	return query, b.args
 }
 
+// buildWhereClause constructs the WHERE clause
 func (b *SelectBuilder) buildWhereClause() string {
 	if b.exprs == nil {
 		return ""
@@ -98,6 +103,7 @@ func (b *SelectBuilder) buildWhereClause() string {
 	return " WHERE " + whereClause
 }
 
+// buildSelectClause constructs the SELECT clause
 func (b *SelectBuilder) buildSelectClause() string {
 	fields := "*"
 	if len(b.fields) > 0 {
@@ -106,6 +112,7 @@ func (b *SelectBuilder) buildSelectClause() string {
 	return fmt.Sprintf("SELECT %s FROM %s", fields, b.table)
 }
 
+// buildOrderByClause constructs the ORDER BY clause
 func (b *SelectBuilder) buildOrderByClause() string {
 	if len(b.orderBy) == 0 {
 		return ""
@@ -123,6 +130,7 @@ func (b *SelectBuilder) buildOrderByClause() string {
 	return " ORDER BY " + strings.Join(orders, ", ")
 }
 
+// buildLimitOffsetClause constructs the LIMIT and OFFSET clauses
 func (b *SelectBuilder) buildLimitOffsetClause() string {
 	result := ""
 	if b.limit > 0 {

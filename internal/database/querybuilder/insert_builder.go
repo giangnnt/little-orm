@@ -4,6 +4,7 @@ import (
 	"little-orm/internal/database/registry"
 )
 
+// InsertBuilder builds INSERT SQL queries
 type InsertBuilder struct {
 	table     string
 	columns   []string
@@ -11,6 +12,7 @@ type InsertBuilder struct {
 	tableMeta registry.TableMeta
 }
 
+// NewInsertBuilder creates a new INSERT query builder for the given model
 func NewInsertBuilder(model any) *InsertBuilder {
 	// Get table registry and table meta
 	reg := registry.GetDBRegistry()
@@ -24,6 +26,7 @@ func NewInsertBuilder(model any) *InsertBuilder {
 	}
 }
 
+// Build constructs the final SQL query and returns it with arguments
 func (b *InsertBuilder) Build() (string, []any) {
 	// TODO: Implement build logic
 	return "", nil
