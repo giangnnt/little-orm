@@ -9,7 +9,7 @@ import (
 // SelectBuilder builds SELECT SQL queries
 type SelectBuilder struct {
 	table         string
-	fields        []string
+	fields        []Expr
 	exprs         Expr
 	groupBy       []ColumnExpr
 	orderBy       []string
@@ -28,9 +28,9 @@ func NewSelectBuilder(model any) *SelectBuilder {
 	tableMeta := reg.GetTableMeta(model)
 
 	// Init all fields
-	fields := make([]string, 0, len(tableMeta.Columns))
+	fields := make([]Expr, 0, len(tableMeta.Columns))
 	for _, col := range tableMeta.Columns {
-		fields = append(fields, col.DBTag)
+		fields = append(fields, C(col.DBTag))
 	}
 
 	return &SelectBuilder{
@@ -43,13 +43,13 @@ func NewSelectBuilder(model any) *SelectBuilder {
 
 // Select specifies which fields to select (if not called, selects all fields)
 func (b *SelectBuilder) Select(fields ...string) *SelectBuilder {
-	dbTags := []string{}
+	dbTags := []Expr{}
 	for _, field := range fields {
-		fieldTag, ok := b.tableMeta.Columns[field]
+		fieldMeta, ok := b.tableMeta.Columns[field]
 		if !ok {
 			panic(fmt.Sprintf("Field %s is not registered", field))
 		}
-		dbTags = append(dbTags, fieldTag.DBTag)
+		dbTags = append(dbTags, C(fieldMeta.DBTag))
 	}
 	// Replace init fields
 	b.fields = dbTags
@@ -106,10 +106,23 @@ func (b *SelectBuilder) buildWhereClause() string {
 // buildSelectClause constructs the SELECT clause
 func (b *SelectBuilder) buildSelectClause() string {
 	fields := "*"
-	if len(b.fields) > 0 {
-		fields = strings.Join(b.fields, ", ")
+	// Giả sử b.fields có kiểu []*ColumnExpr
+	expr, ok := (b.fields).([]*ColumnExpr)
+	if ok {
+		names := make([]string, 0, len(expr))
+		for _, v := range expr {
+			names = append(names, v.Name)
+		}
+		fieldsStr := ""
+		if len(expr) > 0 {
+			fieldsStr = strings.Join(names, ", ")
+		}
+		return fmt.Sprintf("SELECT %s FROM %s", fieldsStr, b.table)
 	}
-	return fmt.Sprintf("SELECT %s FROM %s", fields, b.table)
+
+	// Nếu không phải []*ColumnExpr, có thể xử lý khác hoặc trả về lỗi
+	return ""
+
 }
 
 // buildOrderByClause constructs the ORDER BY clause
