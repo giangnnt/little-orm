@@ -1,69 +1,85 @@
 package iterator
 
-type Iterator struct {
-	data      []any
-	index     int
-	selector  []func(any) any
-	predicate []func(any) bool
+type Iterator[T any] struct {
+	data  []T
+	index int
 }
 
-func NewIterator[T any](items []T) *Iterator {
-	boxed := make([]any, len(items))
-	for i, item := range items {
-		boxed[i] = item
-	}
-
-	return &Iterator{
-		data:      boxed,
-		index:     0,
-		selector:  []func(v any) any{},
-		predicate: []func(v any) bool{},
-	}
+func FromSlice[T any](s []T) *Iterator[T] {
+	return &Iterator[T]{data: s}
 }
 
-func (it *Iterator) matchPredicates(v any) bool {
-	for _, pred := range it.predicate {
-		if !pred(v) {
-			return false
-		}
-	}
-	return true
-}
-
-func (it *Iterator) HasNext() bool {
-	return it.index < len(it.data)
-}
-
-func (it *Iterator) Next() any {
-	if !it.HasNext() {
-		return nil
+func (it *Iterator[T]) Next() (T, bool) {
+	if it.index >= len(it.data) {
+		var zero T
+		return zero, false
 	}
 	v := it.data[it.index]
 	it.index++
-	return it.selector(v)
+	return v, true
 }
 
-// Terminal Op
-func (it *Iterator) ToList() []any {
-	var result []any
-	for it.HasNext() {
-		v := it.data[it.index]
-		if it.predicate(v) {
-			result = append(result, it.Next())
-		} else {
-			it.index++
-		}
+type Query[T any] struct {
+	src        func() (T, bool)
+	predicates []func(T) bool
+	selectors  []func(any) any
+}
+
+func NewQuery[T any](src *Iterator[T]) *Query[T] {
+	return &Query[T]{
+		src: func() (T, bool) { return src.Next() },
 	}
-	return result
 }
 
-// Intermediate Op
-func (it *Iterator) Select(fn func(v any) any) *Iterator {
-	it.selector = fn
-	return it
+func Where[T any](q *Query[T], pred func(T) bool) *Query[T] {
+	q.predicates = append(q.predicates, pred)
+	return q
 }
 
-func (it *Iterator) Where(fn func(v any) bool) *Iterator {
-	it.predicate = fn
-	return it
+func Select[T any, R any](q *Query[T], sel func(T) R) *Query[R] {
+	return &Query[R]{
+		src: func() (R, bool) {
+			for {
+				v, ok := q.Next()
+				if !ok {
+					var zero R
+					return zero, false
+				}
+				return sel(v), true
+			}
+		},
+	}
+}
+
+func (q *Query[T]) Next() (T, bool) {
+	for {
+		v, ok := q.src()
+		if !ok {
+			var zero T
+			return zero, false
+		}
+
+		okAll := true
+		for _, pred := range q.predicates {
+			if !pred(v) {
+				okAll = false
+				break
+			}
+		}
+		if !okAll {
+			continue
+		}
+
+		if len(q.selectors) == 0 {
+			return v, true
+		}
+
+		var r any = v
+		for _, sel := range q.selectors {
+			r = sel(r)
+		}
+
+		casted, _ := r.(T)
+		return casted, true
+	}
 }

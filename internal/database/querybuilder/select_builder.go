@@ -2,6 +2,7 @@ package querybuilder
 
 import (
 	"fmt"
+	. "little-orm/internal/database/iterator"
 	"little-orm/internal/database/registry"
 	"strings"
 )
@@ -105,15 +106,21 @@ func (b *SelectBuilder) buildWhereClause() string {
 
 // buildSelectClause constructs the SELECT clause
 func (b *SelectBuilder) buildSelectClause() string {
-	fields := "*"
+	cols := make([]*ColumnExpr, 0, len(b.fields))
+	for _, f := range b.fields {
+		switch v := f.(type) {
+		case *ColumnExpr:
+			cols = append(cols, v)
+		}
+	}
 	// Giả sử b.fields có kiểu []*ColumnExpr
 	expr, ok := (b.fields).([]*ColumnExpr)
 	if ok {
 		names := make([]string, 0, len(expr))
-		for _, v := range expr {
-			names = append(names, v.Name)
-		}
-		fieldsStr := ""
+		names = NewIterator(cols).Select(func(c ColumnExpr) string {
+			return c.Name
+		}).ToList()
+		fieldsStr := "*"
 		if len(expr) > 0 {
 			fieldsStr = strings.Join(names, ", ")
 		}
